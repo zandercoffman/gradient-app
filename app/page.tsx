@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ControlPanel } from '@/components/ControlPanel'
 import { ExportMenu } from '@/components/ExportMenu'
 import { PresetBar } from '@/components/PresetBar'
@@ -30,11 +30,51 @@ const clamp = (value: number, min: number, max: number) =>
 const sortKeyframes = (keyframes: Keyframe[]) =>
   [...keyframes].sort((a, b) => a.time - b.time)
 
+const loadInitialStudioState = () => {
+  if (typeof window === 'undefined') {
+    return {
+      settings: defaultSettings,
+      keyframes: [] as Keyframe[],
+      duration: 8,
+    }
+  }
+
+  const storedState = loadStudioState()
+  if (!storedState) {
+    return {
+      settings: defaultSettings,
+      keyframes: [] as Keyframe[],
+      duration: 8,
+    }
+  }
+
+  return {
+    settings: storedState.settings,
+    keyframes: sortKeyframes(storedState.keyframes),
+    duration: storedState.duration,
+  }
+}
+
+const loadInitialSetups = () => {
+  if (typeof window === 'undefined') {
+    return [] as SavedSetup[]
+  }
+
+  return loadSavedSetups()
+}
+
 export default function Home() {
-  const [settings, setSettings] = useState<GradientSettings>(defaultSettings)
-  const [keyframes, setKeyframes] = useState<Keyframe[]>([])
-  const [duration, setDuration] = useState(8)
-  const [savedSetups, setSavedSetups] = useState<SavedSetup[]>([])
+  const [initialStudioState] = useState(loadInitialStudioState)
+  const [settings, setSettings] = useState<GradientSettings>(
+    initialStudioState.settings,
+  )
+  const [keyframes, setKeyframes] = useState<Keyframe[]>(
+    initialStudioState.keyframes,
+  )
+  const [duration, setDuration] = useState(initialStudioState.duration)
+  const [savedSetups, setSavedSetups] = useState<SavedSetup[]>(
+    loadInitialSetups,
+  )
   const [isPlaying, setIsPlaying] = useState(true)
   const [currentTime, setCurrentTime] = useState(0)
   const [canvasElement, setCanvasElement] = useState<HTMLCanvasElement | null>(null)
@@ -54,17 +94,6 @@ export default function Home() {
   useEffect(() => {
     durationRef.current = duration
   }, [duration])
-
-  useEffect(() => {
-    const storedState = loadStudioState()
-    if (storedState) {
-      setSettings(storedState.settings)
-      setKeyframes(sortKeyframes(storedState.keyframes))
-      setDuration(storedState.duration)
-    }
-
-    setSavedSetups(loadSavedSetups())
-  }, [])
 
   useEffect(() => {
     saveStudioState({ settings, keyframes, duration })
@@ -249,8 +278,6 @@ export default function Home() {
     [canvasElement, handleScrub],
   )
 
-  const keyframeCount = useMemo(() => keyframes.length, [keyframes.length])
-
   return (
     <div className="relative min-h-screen overflow-hidden bg-black text-white">
       <GradientCanvas
@@ -283,7 +310,7 @@ export default function Home() {
             onKeyframeTimeChange={updateKeyframeTime}
           />
 
-          <p className="text-xs text-zinc-400">{keyframeCount} keyframes</p>
+          <p className="text-xs text-zinc-400">{keyframes.length} keyframes</p>
         </section>
 
         <aside className="pointer-events-auto flex flex-col gap-3 lg:ml-auto">
